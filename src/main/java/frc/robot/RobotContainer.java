@@ -4,85 +4,54 @@
 
 package frc.robot;
 
-import com.pathplanner.lib.auto.AutoBuilder;
-import com.pathplanner.lib.auto.NamedCommands;
-
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Transform2d;
-import edu.wpi.first.math.util.Units;
-import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.InstantCommand;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import frc.robot.Constants.OIConstants;
-import frc.robot.commands.AlignWithNearestSectorTag;
 import frc.robot.subsystems.SwerveSubsystem;
-import frc.robot.util.Elastic;
-import frc.robot.util.Elastic.Notification;
-import frc.robot.util.Elastic.Notification.NotificationLevel;
+import swervelib.SwerveInputStream;
 
 public class RobotContainer {
-  // Controllers
-  private final CommandXboxController m_driverController = new CommandXboxController(OIConstants.kDriverControllerPort);
-
   // Subsystems
-  private final SwerveSubsystem m_swerveSubsystem = new SwerveSubsystem();
+  private final SwerveSubsystem swerveSubsystem = new SwerveSubsystem();
+
+  // Controllers
+  private final CommandXboxController driverController = new CommandXboxController(0);
+
+  // Swerve Input Streams
+  private final SwerveInputStream robotRelativeAngularVelocity = SwerveInputStream
+      .of(swerveSubsystem.getSwerveDrive(), () -> -driverController.getLeftY(), () -> -driverController.getLeftX())
+      .withControllerRotationAxis(() -> -driverController.getRightX())
+      .deadband(0.1)
+      .scaleTranslation(0.8)
+      .allianceRelativeControl(false);
+
+  private final SwerveInputStream allianceRelativeAngularVelocity = robotRelativeAngularVelocity.copy()
+      .allianceRelativeControl(true);
+
+  private final SwerveInputStream allianceRelativeDirectAngle = allianceRelativeAngularVelocity.copy()
+      .withControllerHeadingAxis(driverController::getRightX, driverController::getRightY)
+      .headingWhile(true);
 
   // Commands
+  private final Command driveRobotOrientedAngularVelocity = swerveSubsystem
+      .driveRobotOriented(robotRelativeAngularVelocity);
 
-  // Other stuff
-  private final SendableChooser<Command> m_autoChooser;
+  private final Command driveFieldOrientedAngularVelocity = swerveSubsystem
+      .driveFieldOriented(allianceRelativeAngularVelocity);
+
+  private final Command driveFieldOrientedDirectAngle = swerveSubsystem.driveFieldOriented(allianceRelativeDirectAngle);
 
   public RobotContainer() {
-    // Send a friendly message to the driver
-    Elastic.sendNotification(new Notification(NotificationLevel.INFO, "YEYEYE!", "Robot program started."));
-
-    registerNamedCommands();
     configureBindings();
 
-    Command driveAngularVelocity = m_swerveSubsystem.driveCommand(
-        () -> -MathUtil.applyDeadband(m_driverController.getLeftY(), OIConstants.kDriverControllerTranslationDeadband),
-        () -> -MathUtil.applyDeadband(m_driverController.getLeftX(), OIConstants.kDriverControllerTranslationDeadband),
-        () -> -MathUtil.applyDeadband(m_driverController.getRightX(), OIConstants.kDriverControllerRotationDeadband),
-        () -> -MathUtil.applyDeadband(m_driverController.getRightY(), OIConstants.kDriverControllerRotationDeadband))
-        .beforeStarting(new InstantCommand(() -> m_swerveSubsystem.setCommandedHeading(), m_swerveSubsystem));
-
-    m_swerveSubsystem.setDefaultCommand(driveAngularVelocity);
-
-    // Send the auto chooser to the dashboard
-    m_autoChooser = AutoBuilder.buildAutoChooser();
-    SmartDashboard.putData("Auto Chooser", m_autoChooser);
-  }
-
-  private void registerNamedCommands() {
-    NamedCommands.registerCommand("Test", Commands.none());
-    NamedCommands.registerCommand("AlignWithNearestSectorTag", new AlignWithNearestSectorTag(m_swerveSubsystem,
-        new Transform2d(
-            Units.inchesToMeters(24),
-            Units.inchesToMeters(0),
-            Rotation2d.fromDegrees(180))));
+    // Set default subsystem commands
+    swerveSubsystem.setDefaultCommand(driveFieldOrientedDirectAngle);
   }
 
   private void configureBindings() {
-
-    m_driverController.leftBumper().onTrue(new InstantCommand(m_swerveSubsystem::resetGyro, m_swerveSubsystem));
-
-    m_driverController.rightBumper().onTrue(new InstantCommand(m_swerveSubsystem::resetPose, m_swerveSubsystem));
-
-    m_driverController.x()
-        .whileTrue(m_swerveSubsystem.alignWithAprilTag(18,
-            new Transform2d(Units.inchesToMeters(48), Units.inchesToMeters(0), Rotation2d.fromDegrees(0))));
-
-    m_driverController.y().whileTrue(new AlignWithNearestSectorTag(m_swerveSubsystem, new Transform2d(
-        Units.inchesToMeters(24),
-        Units.inchesToMeters(0),
-        Rotation2d.fromDegrees(180))));
   }
 
   public Command getAutonomousCommand() {
-    return m_autoChooser.getSelected();
+    return Commands.print("No autonomous command configured");
   }
 }
