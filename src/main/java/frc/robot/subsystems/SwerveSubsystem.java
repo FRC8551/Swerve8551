@@ -14,8 +14,8 @@ import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.util.Units;
-import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Filesystem;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import swervelib.SwerveDrive;
@@ -44,7 +44,7 @@ public class SwerveSubsystem extends SubsystemBase {
 
     // Swerve configuration
     swerve.setAngularVelocityCompensation(false, false, 0);
-    swerve.setAutoCenteringModules(true);
+    swerve.setAutoCenteringModules(false);
     swerve.setChassisDiscretization(true, 0.02); // Change this to true
     swerve.setCosineCompensator(false); // !SwerveDriveTelemetry.isSimulation
     swerve.setHeadingCorrection(false);
@@ -56,6 +56,15 @@ public class SwerveSubsystem extends SubsystemBase {
   @Override
   public void periodic() {
     // This method will be called once per scheduler run
+    SmartDashboard.putNumber("Module Offset FL",
+        Math.round(swerve.getModules()[0].getAbsolutePosition() * 1000) / 1000);
+    SmartDashboard.putNumber("Module Offset FR",
+        Math.round(swerve.getModules()[1].getAbsolutePosition() * 1000) / 1000);
+    SmartDashboard.putNumber("Module Offset BL",
+        Math.round(swerve.getModules()[2].getAbsolutePosition() * 1000) / 1000);
+    SmartDashboard.putNumber("Module Offset BR",
+        Math.round(swerve.getModules()[3].getAbsolutePosition() * 1000) / 1000);
+
   }
 
   public Command driveRobotOriented(Supplier<ChassisSpeeds> velocity) {
@@ -68,33 +77,6 @@ public class SwerveSubsystem extends SubsystemBase {
     return run(() -> {
       swerve.driveFieldOriented(velocity.get());
     });
-  }
-
-  public void resetOdometry(Pose2d initialHolonomicPose) {
-    swerve.resetOdometry(initialHolonomicPose);
-  }
-
-  public Pose2d getPose() {
-    return swerve.getPose();
-  }
-
-  public void zeroGyro() {
-    swerve.zeroGyro();
-  }
-
-  private boolean isRedAlliance() {
-    var alliance = DriverStation.getAlliance();
-    return alliance.isPresent() ? alliance.get() == DriverStation.Alliance.Red : false;
-  }
-
-  public void zeroGyroWithAlliance() {
-    if (isRedAlliance()) {
-      zeroGyro();
-      // Set the pose 180 degrees
-      resetOdometry(new Pose2d(getPose().getTranslation(), Rotation2d.fromDegrees(180)));
-    } else {
-      zeroGyro();
-    }
   }
 
   public SwerveDrive getSwerveDrive() {

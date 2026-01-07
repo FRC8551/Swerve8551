@@ -4,6 +4,8 @@
 
 package frc.robot;
 
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
@@ -43,6 +45,13 @@ public class RobotContainer {
 
   public RobotContainer() {
     configureBindings();
+
+    SendableChooser<Command> chooser = new SendableChooser<>();
+    chooser.setDefaultOption("Field-Centric Direct Angle", driveFieldOrientedDirectAngle);
+    chooser.addOption("Field-Centric Angular Velocity", driveFieldOrientedAngularVelocity);
+    chooser.addOption("Robot-Centric", driveRobotOrientedAngularVelocity);
+
+    SmartDashboard.putData("Drive Mode", chooser);
 
     // Set default subsystem commands
     swerveSubsystem.setDefaultCommand(driveFieldOrientedDirectAngle);
