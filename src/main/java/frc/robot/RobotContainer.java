@@ -4,60 +4,70 @@
 
 package frc.robot;
 
-import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import frc.robot.Robot.DriveMode;
 import frc.robot.subsystems.SwerveSubsystem;
 import swervelib.SwerveInputStream;
 
 public class RobotContainer {
   // Subsystems
-  private final SwerveSubsystem swerveSubsystem = new SwerveSubsystem();
+  private final SwerveSubsystem m_swerveSubsystem = new SwerveSubsystem();
 
   // Controllers
-  private final CommandXboxController driverController = new CommandXboxController(0);
+  private final CommandXboxController m_driverController = new CommandXboxController(0);
 
   // Swerve Input Streams
-  private final SwerveInputStream robotRelativeAngularVelocity = SwerveInputStream
-      .of(swerveSubsystem.getSwerveDrive(), () -> -driverController.getLeftY(), () -> -driverController.getLeftX())
-      .withControllerRotationAxis(() -> -driverController.getRightX())
+  private final SwerveInputStream m_robotRelative = SwerveInputStream
+      .of(m_swerveSubsystem.getSwerveDrive(), () -> -m_driverController.getLeftY(),
+          () -> -m_driverController.getLeftX())
+      .withControllerRotationAxis(() -> -m_driverController.getRightX())
       .deadband(0.1)
       .scaleTranslation(0.8)
       .allianceRelativeControl(false);
 
-  private final SwerveInputStream allianceRelativeAngularVelocity = robotRelativeAngularVelocity.copy()
+  private final SwerveInputStream m_allianceRelativeAngularVelocity = m_robotRelative.copy()
       .allianceRelativeControl(true);
 
-  private final SwerveInputStream allianceRelativeDirectAngle = allianceRelativeAngularVelocity.copy()
-      .withControllerHeadingAxis(driverController::getRightX, driverController::getRightY)
+  private final SwerveInputStream m_allianceRelativeDirectAngle = m_allianceRelativeAngularVelocity.copy()
+      .withControllerHeadingAxis(m_driverController::getRightX, m_driverController::getRightY)
       .headingWhile(true);
 
   // Commands
-  private final Command driveRobotOrientedAngularVelocity = swerveSubsystem
-      .driveRobotOriented(robotRelativeAngularVelocity);
+  private final Command m_driveRobotOrientedAngularVelocity = m_swerveSubsystem
+      .driveRobotOriented(m_robotRelative);
 
-  private final Command driveFieldOrientedAngularVelocity = swerveSubsystem
-      .driveFieldOriented(allianceRelativeAngularVelocity);
+  private final Command m_driveFieldOrientedAngularVelocity = m_swerveSubsystem
+      .driveFieldOriented(m_allianceRelativeAngularVelocity);
 
-  private final Command driveFieldOrientedDirectAngle = swerveSubsystem.driveFieldOriented(allianceRelativeDirectAngle);
+  private final Command m_driveFieldOrientedDirectAngle = m_swerveSubsystem
+      .driveFieldOriented(m_allianceRelativeDirectAngle);
 
   public RobotContainer() {
     configureBindings();
-
-    SendableChooser<Command> chooser = new SendableChooser<>();
-    chooser.setDefaultOption("Field-Centric Direct Angle", driveFieldOrientedDirectAngle);
-    chooser.addOption("Field-Centric Angular Velocity", driveFieldOrientedAngularVelocity);
-    chooser.addOption("Robot-Centric", driveRobotOrientedAngularVelocity);
-
-    SmartDashboard.putData("Drive Mode", chooser);
-
-    // Set default subsystem commands
-    swerveSubsystem.setDefaultCommand(driveFieldOrientedDirectAngle);
   }
 
   private void configureBindings() {
+  }
+
+  public void changeDriveMode(DriveMode driveMode) {
+    if (m_swerveSubsystem.getCurrentCommand() != null) {
+      m_swerveSubsystem.getCurrentCommand().cancel();
+    }
+
+    switch (driveMode) {
+      case RobotOriented:
+        m_swerveSubsystem.setDefaultCommand(m_driveRobotOrientedAngularVelocity);
+        break;
+      case FieldOrientedAngularVelocity:
+        m_swerveSubsystem.setDefaultCommand(m_driveFieldOrientedAngularVelocity);
+        break;
+      case FieldOrientedDirectAngle:
+        m_swerveSubsystem.setDefaultCommand(m_driveFieldOrientedDirectAngle);
+      default:
+        break;
+    }
   }
 
   public Command getAutonomousCommand() {
