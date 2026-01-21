@@ -4,82 +4,109 @@
 
 package frc.robot.subsystems;
 
-import static edu.wpi.first.units.Units.Meter;
-
 import java.io.File;
 import java.util.function.Supplier;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
+import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.config.PIDConstants;
+import com.pathplanner.lib.config.RobotConfig;
+import com.pathplanner.lib.controllers.PPHolonomicDriveController;
+import com.pathplanner.lib.util.PathPlannerLogging;
+
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.util.Units;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.Constants.SwerveConstants;
 import swervelib.SwerveDrive;
 import swervelib.parser.SwerveParser;
+import swervelib.telemetry.SwerveDriveTelemetry;
+import swervelib.telemetry.SwerveDriveTelemetry.TelemetryVerbosity;
 
 public class SwerveSubsystem extends SubsystemBase {
 
-  private final SwerveDrive swerve;
+  private final SwerveDrive m_swerve;
 
   public SwerveSubsystem() {
 
-    boolean blueAlliance = false;
-    Pose2d startingPose = blueAlliance ? new Pose2d(new Translation2d(Meter.of(1),
-        Meter.of(4)),
-        Rotation2d.fromDegrees(0))
-        : new Pose2d(new Translation2d(Meter.of(16),
-            Meter.of(4)),
-            Rotation2d.fromDegrees(0));
+    SwerveDriveTelemetry.verbosity = TelemetryVerbosity.HIGH;
 
     try {
-      swerve = new SwerveParser(new File(Filesystem.getDeployDirectory(), "swerve"))
-          .createSwerveDrive(Units.feetToMeters(16), startingPose);
+      m_swerve = new SwerveParser(new File(Filesystem.getDeployDirectory(), "swerve"))
+          .createSwerveDrive(Units.feetToMeters(16));
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
 
     // Swerve configuration
-    swerve.setAngularVelocityCompensation(false, false, 0);
-    swerve.setAutoCenteringModules(false);
-    swerve.setChassisDiscretization(true, 0.02); // Change this to true
-    swerve.setCosineCompensator(false); // !SwerveDriveTelemetry.isSimulation
-    swerve.setHeadingCorrection(false);
-    swerve.setModuleEncoderAutoSynchronize(true, 1);
-    swerve.setModuleStateOptimization(true);
-    swerve.setMotorIdleMode(false);
+    m_swerve.setAngularVelocityCompensation(false, false, 0);
+    m_swerve.setAutoCenteringModules(false);
+    m_swerve.setChassisDiscretization(true, 0.02); // Change this to true
+    m_swerve.setCosineCompensator(false); // !SwerveDriveTelemetry.isSimulation
+    m_swerve.setHeadingCorrection(false);
+    m_swerve.setModuleEncoderAutoSynchronize(true, 1);
+    m_swerve.setModuleStateOptimization(true);
+    m_swerve.setMotorIdleMode(false);
+
+    setupPathPlanner();
   }
 
   @Override
   public void periodic() {
-    // This method will be called once per scheduler run
-    SmartDashboard.putNumber("Module Offset FL",
-        Math.round(swerve.getModules()[0].getAbsolutePosition() * 1000) / 1000);
-    SmartDashboard.putNumber("Module Offset FR",
-        Math.round(swerve.getModules()[1].getAbsolutePosition() * 1000) / 1000);
-    SmartDashboard.putNumber("Module Offset BL",
-        Math.round(swerve.getModules()[2].getAbsolutePosition() * 1000) / 1000);
-    SmartDashboard.putNumber("Module Offset BR",
-        Math.round(swerve.getModules()[3].getAbsolutePosition() * 1000) / 1000);
+    ChassisSpeeds robotVelocity = m_swerve.getRobotVelocity();
+    double velocity = Math.hypot(robotVelocity.vxMetersPerSecond, robotVelocity.vyMetersPerSecond) * 2.23694;
+    SmartDashboard.putNumber(SwerveConstants.kSlash + "Speedometer (MPH)", Math.round(velocity * 1000.0) / 1000.0);
+  }
 
+  public void setupPathPlanner() {
+    RobotConfig config;
+    try {
+      config = RobotConfig.fromGUISettings();
+
+      AutoBuilder.configure(
+          m_swerve::getPose,
+          m_swerve::resetOdometry,
+          m_swerve::getRobotVelocity,
+          (speeds, feedforwards) -> m_swerve.drive(speeds),
+          new PPHolonomicDriveController(
+              new PIDConstants(5, 0, 0),
+              new PIDConstants(5, 0, 0)),
+          config,
+          this::isRedAlliance,
+          this);
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+
+    PathPlannerLogging.setLogActivePathCallback((poses) -> {
+      m_swerve.field.getObject("path").setPoses(poses);
+    });
+  }
+
+  private boolean isRedAlliance() {
+    var alliance = DriverStation.getAlliance();
+    if (alliance.isPresent()) {
+      return alliance.get() == DriverStation.Alliance.Red;
+    }
+    return false;
   }
 
   public Command driveRobotOriented(Supplier<ChassisSpeeds> velocity) {
     return run(() -> {
-      swerve.drive(velocity.get());
+      m_swerve.drive(velocity.get());
     });
   }
 
   public Command driveFieldOriented(Supplier<ChassisSpeeds> velocity) {
     return run(() -> {
-      swerve.driveFieldOriented(velocity.get());
+      m_swerve.driveFieldOriented(velocity.get());
     });
   }
 
   public SwerveDrive getSwerveDrive() {
-    return swerve;
+    return m_swerve;
   }
 }
